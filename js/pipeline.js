@@ -11,16 +11,24 @@ function allowDrop(event) {
     event.preventDefault();
 }
 
+var log2=[]
 function drop(event) {
     event.preventDefault();
     var processDat = event.dataTransfer.getData("Text");
-    //var posX = event.clientX - 170;
-    //var posY = event.clientY - 220;
+    console.log("processDat:")
+    console.log(processDat)
     var posX = 0;
     var posY = 0;
-    
-    console.log("posX:" + event.clientX + " posY:" + event.clientY)
-     
+
+
+    var svgA = document.getElementById("svg")
+    var pt = svgA.createSVGPoint();
+    pt.x = event.clientX
+    pt.y = event.clientY
+    var svgGlobal = pt.matrixTransform(svgA.getScreenCTM().inverse())
+    posX = svgGlobal.x - 50
+    posY = svgGlobal.y - 70
+
     addProcess(processDat, posX, posY)
     event.stopPropagation();
     return false;
@@ -69,8 +77,8 @@ function drop(event) {
 		  createSVG()
 		  e = document.getElementById("pipelines");
           id = e.options[e.selectedIndex].id;
-          sData = getValues( {p: "loadPipeline", id: id} )
-		  
+          sData = getValues( {p: "loadPipeline", id: id} ) //all data from biocorepipe_save table
+
 		  if (Object.keys(sData).length > 0) {
 			  nodes = sData[0].nodes
 			  nodes = JSON.parse(nodes.replace(/'/gi, "\""))
@@ -154,143 +162,294 @@ function drop(event) {
             .text(savedData[i].name)
         }
       }
-	  
+	  //kind=input/output
+      //
+      function drawParam(name,process_id, id, kind){
+          
+          if (kind === "input") {
+             var paramid="inPara"
+             var classtoparam ="connect_to_input output"  
+          } else if (kind === "output"){
+             var paramid="outPara"
+             var classtoparam ="connect_to_output input"  
+          }
+          
+          //gnum uniqe, id same id (Written in class) in same type process
+            g = d3.select("#mainG").append("g")
+                .attr("id", "g-" + gNum)
+                .attr("class", "g-" + id)
+                .attr("transform", "translate(" + (5+ x +ipR + ipIor)/z   + "," + (20+ y +ipR + ipIor)/z + ")")
+                .on("mouseover", mouseOverG)
+                .on("mouseout", mouseOutG)
+            
+            //gnum(written in id): uniqe, id(Written in class): same id in same type process, bc(written in type): same at all bc
+            //outermost circle transparent
+            g.append("circle").attr("id", "bc-" + gNum)
+                .attr("class", "bc-" + id)
+                .attr("type", "bc")
+                .attr("cx", cx)
+                .attr("cy", cy)
+                .attr("r", ipR + ipIor)
+                .attr('fill-opacity', 0)
+                .attr("fill", "#E0E0E0")
+            
+            //second outermost circle visible gray
+             g.append("circle")
+                .datum([{
+                    cx: 0,
+                    cy: 0
+                }])
+                .attr("id", "sc-" + gNum)
+                .attr("class", "sc-" + id)
+                .attr("type", "sc")
+                .attr("r", ipR + ipIor )
+                .attr("fill", "#E0E0E0")
+                .attr('fill-opacity', 1)
+                .on("mouseover", scMouseOver)
+                .on("mouseout", scMouseOut)
+                .call(drag)
+            
+            //gnum(written in id): uniqe, id(Written in class): same id in same type process, bc(written in type): same at all bc
+            //inner parameter circle 
+          
+          
+            d3.select("#g-" + gNum).append("circle")
+                .attr("id", "o-" + id + "-" + 1 + "-" + paramid + "-" + gNum) //değişecek
+                .attr("type", "I/O")
+                .attr("kind", kind)  //connection candidate=input
+                .attr("parentG", "g-" + gNum)
+                .attr("name", "NA") 
+                .attr("status", "standard")
+                .attr("class", classtoparam)  
+                .attr("cx", cx)
+                .attr("cy", cy)
+                .attr("r", ipIor )
+                .attr("fill", "orange")
+                .attr('fill-opacity', 0.8)
+                .on("mouseover", IOmouseOver)
+                .on("mousemove", IOmouseMove)
+                .on("mouseout", IOmouseOut)
+                .on("mousedown", IOconnect)       
+            
+            //gnum(written in id): unique,
+            g.append("text").attr("id", "text-" + gNum)
+                .datum([{
+                    cx: 0,
+                    cy: 20
+                }])
+                .attr('font-family', 'FontAwesome')
+                .attr('font-size', '1em')
+                .text(name)
+                .attr("text-anchor", "middle")
+                .attr("x", 0)
+                .attr("y", 28 )
+                .on("mouseover", scMouseOver)
+                .on("mouseout", scMouseOut)
+                .call(drag)
+
+            g.append("text").attr("id", "text-" + gNum)
+                .datum([{
+                    cx: 0,
+                    cy: 0
+                }])
+                .attr('font-family', 'FontAwesome')
+                .attr('font-size', '0.9em')
+                .attr("x", -40)
+                .attr("y",  5)
+                .text('\uf040')
+                .on("mousedown", rename)
+
+            //gnum(written in id): uniqe,
+            g.append("text")
+                .attr("id", "del-" + gNum)
+                .attr('font-family', 'FontAwesome')
+                .attr('font-size', '1em')
+                .attr("x", +30)
+                .attr("y", 5)
+                .text('\uf014')
+                .style("opacity", 0.2)
+                .on("mousedown", removeElement)
+      }
+    
       function addProcess(processDat, xpos, ypos) {
 		t = d3.transform(d3.select('#'+"mainG").attr("transform")),
-		//x = t.translate[0]
-		//y = t.translate[1]
-        x = xpos
-        y = ypos
+        x = (xpos - t.translate[0])
+        y = (ypos - t.translate[1])
 		z = t.scale[0]
+
 
         //e = document.getElementById("mainProcesses");
         //name = e.options[e.selectedIndex].value;
         //id = e.options[e.selectedIndex].id;
 		//index = e.options[e.selectedIndex].index;
 		//var process_id = processData[index].id;
-       
-        var name = processDat.split('@')[0]
-        var process_id = processDat.split('@')[1]
-        var id = process_id
-         
-		var inputs =  getValues(  {p: "getInputs",
-			    "process_id": process_id} )
-	    var outputs = getValues(  {p: "getOutputs",
-			    "process_id": process_id} )
-
-//gnum uniqe, id same id (Written in class) in same type process
-        g = d3.select("#mainG").append("g")
-          .attr("id","g-" + gNum)
-          .attr("class","g-"+id)
-          .attr("transform", "translate("+ (r+ior-(x/z) + 300) +","+ (r+ior-(y/z)) +")")
-          .on("mouseover",mouseOverG)
-          .on("mouseout",mouseOutG)
-//gnum(written in id): uniqe, id(Written in class): same id in same type process, bc(written in type): same at all bc
-        g.append("circle").attr("id", "bc-" + gNum )
-          .attr("class", "bc-" + id)
-          .attr("type","bc")
-          .attr("cx",cx)
-          .attr("cy",cy)
-          .attr("r",r+ior)
-          .attr('fill-opacity', 0.6)
-		  .attr("fill", "red")
-		  .transition()
-		  .delay(500)
-		  .duration(3000)
-		  .attr("fill","#E0E0E0")
-//gnum(written in id): uniqe, id(Written in class): same id in same type process, sc(written in type): same at all bc
-        g.append("circle")
-		  .datum([{cx: 0, cy: 0}])
-		  .attr("id", "sc-" + gNum )
-          .attr("class", "sc-" + id)
-          .attr("type","sc")
-          .attr("r",r-ior)
-          .attr("fill","#BEBEBE")
-          .attr('fill-opacity', 0.6)
-          .on("mouseover",scMouseOver)
-          .on("mouseout",scMouseOut)
-					.call(drag)
-//gnum(written in id): uniqe,
-		g.append("text").attr("id", "text-" + gNum )
-		  .datum([{cx: 0, cy: 0}])
-		  .attr('font-family', 'FontAwesome')
-		  .attr('font-size', '1em')
-		  .text(name)
-		  .style("text-anchor","middle")
-		  .on("mouseover",scMouseOver)
-		  .on("mouseout",scMouseOut)
-		  .call(drag)
-
-		g.append("text").attr("id", "text-" + gNum )
-		  .datum([{cx: 0, cy: 0}])
-		  .attr('font-family', 'FontAwesome')
-		  .attr('font-size', '0.9em')
-		  .attr("x", -6)
-		  .attr("y", 15)
-		  .text('\uf040')
-		  .on("mousedown",rename)
-			  
-//gnum(written in id): uniqe,
-		g.append("text")
-		  .attr("id","del-"+gNum)
-		  .attr('font-family', 'FontAwesome')
-		  .attr('font-size', '1em')
-		  .attr("x", -6)
-		  .attr("y", r+ ior/2)
-		  .text('\uf014')
-		  .style("opacity",0.2)
-		  .on("mousedown", removeElement)
-	    
-		g.append("text")
-		  .attr("id","info-"+gNum)
-		  .attr('font-family', 'FontAwesome')
-		  .attr('font-size', '1em')
-		  .attr("x", 0)
-		  .attr("y", -1*( r + ior/2 - 10))
-		  .text('\uf129')
-		  .style("opacity",0.2)
-		  .on("mousedown", getInfo)
-
-// I/O id naming:[0]i = input,o = output -[1]process database ID -[2]The number of I/O of the selected process -[3]Parameter database ID- [4]uniqe number
-        for (var k = 0; k < inputs.length; k++) {
-            d3.select("#g-"+gNum).append("circle")
-              .attr("id","i-"+(id)+"-"+k+"-"+inputs[k].parameter_id+"-"+gNum)
-              .attr("type", "I/O")
-			  .attr("kind","input")
-			  .attr("parentG","g-"+gNum)
-			  .attr("name", inputs[k].name)
-              .attr("status","standard" )
-              .attr("class",findType(inputs[k].parameter_id) + " input")
-              .attr("cx",calculatePos(inputs.length,k,"cx","inputs"))
-              .attr("cy",calculatePos(inputs.length,k,"cy","inputs"))
-              .attr("r", ior)
-              .attr("fill","tomato")
-              .attr('fill-opacity', 0.8)
-              .on("mouseover", IOmouseOver)
-			  .on("mousemove", IOmouseMove)
-              .on("mouseout", IOmouseOut)
-              .on("mousedown",IOconnect)
+        //console.log(processDat) //Build_Index@10
+          
+        //for input parameters:  
+        if  (processDat === "inputparam@inPro") {
+            var name = processDat.split('@')[0]
+            var process_id = processDat.split('@')[1]
+            var id = process_id
+            ipR = 70/2
+            ipIor = ipR/3
+            var kind="input"
+            drawParam(name,process_id, id, kind )   
+            processList[("g-" + gNum)] = name
+            gNum = gNum + 1
         }
-        for (var k = 0; k < outputs.length; k++) {
-            d3.select("#g-"+gNum).append("circle")
-              .attr("id","o-"+(id)+"-"+k+"-"+outputs[k].parameter_id+"-"+gNum)
-              .attr("type", "I/O")
-			  .attr("kind","output")
-			  .attr("parentG","g-"+gNum)
-			  .attr("name", outputs[k].name)
-              .attr("status","standard")
-              .attr("class",findType(outputs[k].parameter_id) +" output")
-              .attr("cx",calculatePos(outputs.length,k,"cx","outputs"))
-              .attr("cy",calculatePos(outputs.length,k,"cy","outputs"))
-              .attr("r", ior).attr("fill","steelblue")
-              .attr('fill-opacity', 0.8 )
-              .on("mouseover", IOmouseOver)
-			  .on("mousemove", IOmouseMove)
-              .on("mouseout", IOmouseOut)
-              .on("mousedown",IOconnect)
+        //for output parameters:  
+        else if  (processDat === "outputparam@outPro") {
+            var name = processDat.split('@')[0]
+            var process_id = processDat.split('@')[1]
+            var id = process_id
+            ipR = 70/2
+            ipIor = ipR/3
+            var kind="output"
+            drawParam(name,process_id, id, kind )   
+            processList[("g-" + gNum)] = name
+            gNum = gNum + 1
         }
-        processList[("g-"+gNum)] = name
-        gNum = gNum + 1
+
+        //for processes:
+        else {
+            var name = processDat.split('@')[0]
+            var process_id = processDat.split('@')[1]
+            var id = process_id
+            
+            var inputs = getValues({
+                p: "getInputs",
+                "process_id": process_id
+            })
+            
+            var outputs = getValues({
+                p: "getOutputs",
+                "process_id": process_id
+            })
+            //gnum uniqe, id same id (Written in class) in same type process
+            g = d3.select("#mainG").append("g")
+                .attr("id", "g-" + gNum)
+                .attr("class", "g-" + id)
+                .attr("transform", "translate(" + (-30 + x + r + ior)/z  + "," + (-10 +y + r + ior)/z + ")")
+
+                .on("mouseover", mouseOverG)
+                .on("mouseout", mouseOutG)
+            //gnum(written in id): uniqe, id(Written in class): same id in same type process, bc(written in type): same at all bc
+            g.append("circle").attr("id", "bc-" + gNum)
+                .attr("class", "bc-" + id)
+                .attr("type", "bc")
+                .attr("cx", cx)
+                .attr("cy", cy)
+                .attr("r", r + ior)
+                //  .attr('fill-opacity', 0.6)
+                .attr("fill", "red")
+                .transition()
+                .delay(500)
+                .duration(3000)
+                .attr("fill", "#E0E0E0")
+            //gnum(written in id): uniqe, id(Written in class): same id in same type process, sc(written in type): same at all bc
+            g.append("circle")
+                .datum([{
+                    cx: 0,
+                    cy: 0
+                }])
+                .attr("id", "sc-" + gNum)
+                .attr("class", "sc-" + id)
+                .attr("type", "sc")
+                .attr("r", r - ior)
+                .attr("fill", "#BEBEBE")
+                .attr('fill-opacity', 0.6)
+                .on("mouseover", scMouseOver)
+                .on("mouseout", scMouseOut)
+                .call(drag)
+            //gnum(written in id): uniqe,
+            g.append("text").attr("id", "text-" + gNum)
+                .datum([{
+                    cx: 0,
+                    cy: 0
+                }])
+                .attr('font-family', 'FontAwesome')
+                .attr('font-size', '1em')
+                .text(name)
+                .style("text-anchor", "middle")
+                .on("mouseover", scMouseOver)
+                .on("mouseout", scMouseOut)
+                .call(drag)
+
+            g.append("text").attr("id", "text-" + gNum)
+                .datum([{
+                    cx: 0,
+                    cy: 0
+                }])
+                .attr('font-family', 'FontAwesome')
+                .attr('font-size', '0.9em')
+                .attr("x", -6)
+                .attr("y", 15)
+                .text('\uf040')
+                .on("mousedown", rename)
+
+            //gnum(written in id): uniqe,
+            g.append("text")
+                .attr("id", "del-" + gNum)
+                .attr('font-family', 'FontAwesome')
+                .attr('font-size', '1em')
+                .attr("x", -6)
+                .attr("y", r + ior / 2)
+                .text('\uf014')
+                .style("opacity", 0.2)
+                .on("mousedown", removeElement)
+
+            g.append("text")
+                .attr("id", "info-" + gNum)
+                .attr('font-family', 'FontAwesome')
+                .attr('font-size', '1em')
+                .attr("x", 0)
+                .attr("y", -1 * (r + ior / 2 - 10))
+                .text('\uf129')
+                .style("opacity", 0.2)
+                .on("mousedown", getInfo)
+
+            // I/O id naming:[0]i = input,o = output -[1]process database ID -[2]The number of I/O of the selected process -[3]Parameter database ID- [4]uniqe number
+            for (var k = 0; k < inputs.length; k++) {
+                d3.select("#g-" + gNum).append("circle")
+                    .attr("id", "i-" + (id) + "-" + k + "-" + inputs[k].parameter_id + "-" + gNum)
+                    .attr("type", "I/O")
+                    .attr("kind", "input")
+                    .attr("parentG", "g-" + gNum)
+                    .attr("name", inputs[k].name)
+                    .attr("status", "standard")
+                    .attr("class", findType(inputs[k].parameter_id) + " input")
+                    .attr("cx", calculatePos(inputs.length, k, "cx", "inputs"))
+                    .attr("cy", calculatePos(inputs.length, k, "cy", "inputs"))
+                    .attr("r", ior)
+                    .attr("fill", "tomato")
+                    .attr('fill-opacity', 0.8)
+                    .on("mouseover", IOmouseOver)
+                    .on("mousemove", IOmouseMove)
+                    .on("mouseout", IOmouseOut)
+                    .on("mousedown", IOconnect)
+            }
+            for (var k = 0; k < outputs.length; k++) {
+                d3.select("#g-" + gNum).append("circle")
+                    .attr("id", "o-" + (id) + "-" + k + "-" + outputs[k].parameter_id + "-" + gNum)
+                    .attr("type", "I/O")
+                    .attr("kind", "output")
+                    .attr("parentG", "g-" + gNum)
+                    .attr("name", outputs[k].name)
+                    .attr("status", "standard")
+                    .attr("class", findType(outputs[k].parameter_id) + " output")
+                    .attr("cx", calculatePos(outputs.length, k, "cx", "outputs"))
+                    .attr("cy", calculatePos(outputs.length, k, "cy", "outputs"))
+                    .attr("r", ior).attr("fill", "steelblue")
+                    .attr('fill-opacity', 0.8)
+                    .on("mouseover", IOmouseOver)
+                    .on("mousemove", IOmouseMove)
+                    .on("mouseout", IOmouseOut)
+                    .on("mousedown", IOconnect)
+            }
+            processList[("g-" + gNum)] = name
+            gNum = gNum + 1
+        }
+        
       }
 
       function findType(id) {
@@ -344,8 +503,8 @@ function drop(event) {
     .on("drag", dragged)
     .on("dragend", dragended);
 
-
 	function dragstarted(d) {
+
 		selectedg = document.getElementById(this.id).parentElement
 		coor = d3.mouse(this)
 		diffx = 0-coor[0]
@@ -360,7 +519,6 @@ function drop(event) {
 			t = d3.transform(d3.select('#'+document.getElementById(this.id).parentElement.id).attr("transform")),
 			x = t.translate[0]
 			y = t.translate[1]
-          console.log("x:" + x + " y:" + y)
 		  d3.select(selectedg).attr("transform", "translate("+(x+coor[0]+diffx)+ ","+(y+coor[1]+diffy)+")")
 			moveLine(selectedg.id,x,y,coor)
 		}
@@ -406,7 +564,7 @@ function drop(event) {
 
     function scMouseOver() {
 		parent = document.getElementById(this.id).parentElement.id;
-		if (this.id.split("-")[0] == "text") {
+		if (this.id.split("-")[0] === "text") { //text üzerine gelince
 			cid = "sc-" + this.id.split("-")[1]
 		}
 		else {
@@ -422,7 +580,7 @@ function drop(event) {
     }
 
     function scMouseOut() {
-		if (this.id.split("-")[0] == "text") {
+		if (this.id.split("-")[0] === "text") {
 			cid = "sc-" + this.id.split("-")[1]
 		}
 		else {
@@ -480,23 +638,28 @@ function drop(event) {
         else {
           className = document.getElementById(this.id).className.baseVal.split(" ")
           cand = searchedType(className[1])
-		  parentg = d3.select("#" + this.id).attr("parentG")
+          parentg = d3.select("#" + this.id).attr("parentG")
 
-          d3.selectAll("circle[type ='I/O']").attr("status","noncandidate")
-          d3.selectAll("."+className[0]).filter("." + cand).attr("status","candidate")
-		  d3.selectAll("circle[parentG ="+parentg+"]").attr("status","noncandidate")
-          d3.selectAll("#"+this.id).attr("status","mouseon")
-				  
-		  
-		  tooltip.text(className[0])
-		  tooltip.style("visibility", "visible");
-		  
-		  d3.selectAll("line").attr("status","hide")
-		  d3.selectAll("line[IO_from ="+ this.id +"]").attr("status","standard")
-		  d3.selectAll("line[IO_to ="+this.id+"]").attr("status","standard")
+
+          d3.selectAll("circle[type ='I/O']").attr("status", "noncandidate") //I/O olanları noncandia
+          if (className[0] === "connect_to_input") {
+              conToInput()
+          } else {
+              d3.selectAll("." + className[0]).filter("." + cand).attr("status", "candidate")
+          }
+
+          d3.selectAll("circle[parentG =" + parentg + "]").attr("status", "noncandidate")
+          d3.selectAll("#" + this.id).attr("status", "mouseon")
+
+          tooltip.text(className[0])
+          tooltip.style("visibility", "visible");
+
+          d3.selectAll("line").attr("status", "hide")
+          d3.selectAll("line[IO_from =" + this.id + "]").attr("status", "standard")
+          d3.selectAll("line[IO_to =" + this.id + "]").attr("status", "standard")
 
           showOptions()
-		  showEdges()
+          showEdges()
         }
     }
 	function IOmouseMove() {
@@ -522,28 +685,38 @@ function drop(event) {
     }
 
     function IOconnect() {
-      selectedIO = this.id
+      selectedIO = this.id //first click
       className = document.getElementById(selectedIO).className.baseVal.split(" ")
       cand = searchedType(className[1])
 
-      if (binding) {
-        stopBinding(className,cand,selectedIO)
-      }
-
-      else {
-        startBinding(className,cand,selectedIO)
-      }
+          if (binding) {
+              stopBinding(className, cand, selectedIO)
+          } else {
+              startBinding(className, cand, selectedIO)
+          }
+      
     }
 
-    function startBinding(clasNames,cand,selectedIO) {
-	  parentg = d3.select("#" + selectedIO).attr("parentG")
+    function conToInput() {
+    d3.selectAll("circle").filter("." + cand).attr("status","candidate") //select all available inputs for inputparam circles
+    }
 
-      d3.selectAll("circle[type ='I/O']").attr("status","noncandidate")
-      d3.selectAll("."+className[0]).filter("." + cand).attr("status","candidate")
-	  d3.selectAll("circle[parentG ="+parentg+"]").attr("status","noncandidate")
-      d3.selectAll("#"+selectedIO).attr("status","selected")
-	  d3.selectAll("line").attr("status","hide")
-	  d3.select("#del-"+selectedIO.split("-")[4]).style("opacity",0.2)
+    function startBinding(clasNames, cand, selectedIO) {
+        parentg = d3.select("#" + selectedIO).attr("parentG")
+        
+        d3.selectAll("circle[type ='I/O']").attr("status", "noncandidate")
+
+        if (className[0] === "connect_to_input") {
+        conToInput()
+
+        } else {
+            d3.selectAll("." + className[0]).filter("." + cand).attr("status", "candidate")
+        }
+
+        d3.selectAll("circle[parentG =" + parentg + "]").attr("status", "noncandidate")
+        d3.selectAll("#" + selectedIO).attr("status", "selected")
+        d3.selectAll("line").attr("status","hide")
+	    d3.select("#del-"+selectedIO.split("-")[4]).style("opacity",0.2)
 
       for (var edge = 0; edge < edges.length; edge++) {
         if (edges[edge].indexOf(selectedIO) > -1){
@@ -556,6 +729,7 @@ function drop(event) {
 			showEdges()
     }
 
+    //second click selectedIO
     function stopBinding() {
       firstid = d3.select("circle[status ='selected']")[0][0].id
 	  d3.selectAll("line").attr("status","standard")
@@ -567,6 +741,7 @@ function drop(event) {
       else {
         secondid = d3.select("circle[status ='posCandidate']")[0][0].id
         createEdges(firstid,secondid)
+        
         d3.selectAll("circle[type ='I/O']").attr("status","standard")
 		d3.select("#del-"+secondid.split("-")[4]).style("opacity",1)
       }
@@ -630,40 +805,76 @@ function drop(event) {
         circy = candList[c].cy.baseVal.value + y
 
         posList = [circx,circy,gid]
+          
         candidates[currid] = posList
       }
     }
 
 
     function createEdges(first,second) {
+        
+        inputParamLocF=first.indexOf("o-inPro")  //-1: inputparam not exist //0: first click is done on the inputparam
+        inputParamLocS=second.indexOf("o-inPro")  
+
+        if (inputParamLocS === 0){//second click is done on the circle of inputparam
+            //swap elements
+            tem=second
+            second=first
+            first=tem
+            inputParamLocF = 0
+        }
+        //first click is done on the circle of inputparam
+        if (inputParamLocF === 0) {
+
+            //update the class of inputparam based on selected second circle  
+            secClassName = document.getElementById(second).className.baseVal.split("-")[0].split(" ")[0] + " output"
+            d3.selectAll("#" + first).attr("class", secClassName)
+            //update the parameter of the inputparam based on selected second circle
+            secPI = document.getElementById(second).id.split("-")[3] //second parameter id
+            patt = /(.*)-(.*)-(.*)-(.*)-(.*)/
+            secID = first.replace(patt, '$1-$2-$3-' + secPI + '-$5')
+
+            d3.selectAll("#" + first).attr("id", secID)
+            fClickOrigin = first
+            fClick = secID
+            sClick = second
+
+            
+        } else {
+            fClickOrigin = first
+            fClick = first
+            sClick = second
+        }
+            
+
         d3.select("#mainG").append("line")
-          .attr("id",first +"_"+ second)
+          .attr("id",fClick +"_"+ sClick)
           .attr("class","line")
 		  .attr("type","standard")
 		  .style("stroke", "#B0B0B0").style("stroke-width", 4)
-          .attr("x1", candidates[first][0])
-          .attr("y1", candidates[first][1])
-          .attr("x2", candidates[second][0])
-          .attr("y2", candidates[second][1])
-          .attr("g_from",candidates[first][2])
-          .attr("g_to",candidates[second][2])
-		  .attr("IO_from",first)
-		  .attr("IO_to",second)
+          .attr("x1", candidates[fClickOrigin][0])
+          .attr("y1", candidates[fClickOrigin][1])
+          .attr("x2", candidates[sClick][0])
+          .attr("y2", candidates[sClick][1])
+          .attr("g_from",candidates[fClickOrigin][2])
+          .attr("g_to",candidates[sClick][2])
+		  .attr("IO_from",fClick)
+		  .attr("IO_to",sClick)
           .attr("stroke-width", 2)
           .attr("stroke", "black")
 
 	  d3.select("#mainG").append("g")
-		  .attr("id","c--"+first +"_"+ second)
-		  .attr("transform", "translate("+ (candidates[first][0]+candidates[second][0])/2 +","+ (candidates[first][1]+candidates[second][1])/2 +")")
-		  .attr("g_from",candidates[first][2])
-		  .attr("g_to",candidates[second][2])
-		  .attr("IO_from",first)
-		  .attr("IO_to",second)
+		  .attr("id","c--"+fClick +"_"+ sClick)
+		  .attr("transform", "translate("+ (candidates[fClickOrigin][0]+candidates[sClick][0])/2 +","+ (candidates[fClickOrigin][1]+candidates[sClick][1])/2 +")")
+		  .attr("g_from",candidates[fClickOrigin][2])
+		  .attr("g_to",candidates[sClick][2])
+		  .attr("IO_from",fClick)
+		  .attr("IO_to",sClick)
 		  .on("mousedown",removeElement)
 		  .on("mouseover",delMouseOver)
 		  .on("mouseout",delMouseOut)
 		  .append("circle")
-		  .attr("id","delc--"+first +"_"+ second)
+		  .attr("id","delc--"+fClick +"_"+ sClick)
 		  .attr("class","del")
 		  .attr("cx",0)
 		  .attr("cy",0)
@@ -671,9 +882,9 @@ function drop(event) {
 		  .attr("fill","#E0E0E0")
 		  .attr('fill-opacity', 0.4)
 
-	  d3.select("#c--"+first +"_"+ second)
+	  d3.select("#c--"+fClick +"_"+ sClick)
 		  .append("text")
-		  .attr("id","del--"+first +"_"+ second)
+		  .attr("id","del--"+fClick +"_"+ sClick)
 		  .attr('font-family', 'FontAwesome')
 		  .attr('font-size', '1em')
 		  .attr("x", -5)
@@ -681,7 +892,8 @@ function drop(event) {
 		  .text('\uf014')
 		  .style("opacity",0.4)
 
-      edges.push(first +"_"+ second)
+      edges.push(fClick +"_"+ sClick)
+    //}
     }
 
 	function removeEdge() {
@@ -785,13 +997,11 @@ function drop(event) {
         function getInfo() {
 		    className = document.getElementById(this.id).className.baseVal.split("-")
 			infoID = className[1]
-			console.log(infoID)
 			document.getElementById('id01').style.display='block'
 			inputTable = getInputTable(infoID)
             outputTable = getOutputTable(infoID)
 			var processInfo= getValues(  {p: "getProcessData",
 			    "process_id": infoID} )
-			console.log(processInfo)
 			document.getElementById("process_name").innerHTML = processInfo[0].name
 			document.getElementById("process_summary").innerHTML = processInfo[0].summary
 			document.getElementById("process_script").innerHTML = "<pre><code>" + processInfo[0].script + "</code></pre>"
@@ -884,21 +1094,72 @@ function drop(event) {
 			d3.select("#rename").remove()
 
 		}
-
+        
 		function createNextflowFile() {
-			text = ""
-			for (var key in processList) {
+			nextText = "#!/usr/bin/env nextflow " + " \n\n"
+            //initial input data added
+            for (var key in processList) {
 				className = document.getElementById(key).getAttribute("class");
 				mainProcessId = className.split("-")[1]
-				IOandScriptForNf(mainProcessId,key)
-
-  			proText = "process " + processList[key] + " {\n\n" + IOandScriptForNf(mainProcessId,key) +"\n\n}" + "\n\n"
-				text = text + proText
+				//IOandScriptForNf(mainProcessId, key)
+				iniText = InputParameters(mainProcessId, key)
+				nextText = nextText + iniText
 			}
 
-			return text
+			for (var key in processList) {
+			    className = document.getElementById(key).getAttribute("class");
+			    mainProcessId = className.split("-")[1]
+			    if (mainProcessId !== "inPro") { //if it is not input parameter print process data
+			        IOandScriptForNf(mainProcessId, key)
+			        proText = "process " + processList[key] + " {\n\n" + IOandScriptForNf(mainProcessId, key) + "\n\n}" + "\n\n"
+			        nextText = nextText + proText
+			    }
+			}
+			return nextText
 		}
 
+        //Input parameters and channels with file paths
+        function InputParameters(id,currgid) {
+            IList = d3.select("#" + currgid).selectAll("circle[kind ='input']")[0]
+            iText = "";
+            for (var i = 0; i < IList.length; i++) {
+                Iid = IList[i].id
+                inputIdSplit = Iid.split("-")
+                ProId = inputIdSplit[1]
+                userEntryId = "text-" + inputIdSplit[4]
+
+                if (ProId === "inPro" && inputIdSplit[3] !== "inPara") {
+                    qual = parametersData.filter(function (el) {return el.id == inputIdSplit[3]})[0].qualifier
+                    //filePath = parametersData.filter(function (el) {return el.id == inputIdSplit[3]})[0].file_path
+                    inputParamName = document.getElementById(userEntryId).textContent //input parameter name
+
+                    for (var e = 0; e < edges.length; e++) {
+                        if (edges[e].indexOf(Iid) !== -1) { //if not exist -1, if at first position 0, if at second pos. 12
+                            nodes = edges[e].split("_")
+                            edgeLocF = nodes[0].indexOf("o-inPro") //-1: inputparam not exist //0: first click is done on inputparam
+                                fNode = nodes[0]
+                                sNode = nodes[1]
+                                inputIdSplit = sNode.split("-")
+                                genParName = parametersData.filter(function (el) {return el.id == inputIdSplit[3]})[0].name
+                                channelName = document.getElementById(fNode).getAttribute("parentG") + "-" + genParName //g-0-genome
+
+                            if (qual === "file") {
+                                tempText = "params." + inputParamName + " =\"\" \n" + channelName + " = " + "file(params." + inputParamName + ") \n"
+                                iText = iText + tempText
+                                break
+                            } else if (qual === "set") {
+                                //tempText = "Channel.fromFilePairs(" + filePath + ").set(" + inputParamName + ") \n"
+                                tempText = "params." + inputParamName + " =\"\" \n\nChannel\n\t.fromFilePairs( params." + inputParamName + " )\n\t.ifEmpty { error \"Cannot find any " + genParName + " matching: ${params." + inputParamName + "}\" }\n\t.set { " + channelName + "} \n\n"
+
+                                iText = iText + tempText
+                                break
+                            }
+                        }
+                    }
+                }          
+            }
+            return iText
+        }
 
 		function IOandScriptForNf(id,currgid) {
 				var processData = getValues(  {p: "getProcessData",
@@ -919,20 +1180,31 @@ function drop(event) {
 					inputName = document.getElementById(Iid).getAttribute("name")
 					find = false
 					for (var e = 0; e < edges.length; e++) {
-						if (edges[e].indexOf(Iid) > -1) {
-							find = true
-							nodes = edges[e].split("_")
-							if (nodes[0][0] == o) {
-								channelName = document.getElementById(nodes[1]).getAttribute("parentG")
-							}
-							else {
-								channelName = document.getElementById(nodes[0]).getAttribute("parentG")
-							}
-							bodyInput = bodyInput +" "+ qual +" "+inputName + " from " + channelName + "\n"
+						if (edges[e].indexOf(Iid) > -1) { //if not exist -1, if at first position 0, if at second pos. 12
+						    find = true
+						    nodes = edges[e].split("_")
+						    edgeLocF = nodes[0].indexOf("o-inPro") //-1: inputparam not exist //0: first click is done on inputparam
+						    fNode = nodes[0]
+						    sNode = nodes[1]
+
+
+						    if (nodes[0][0] == o) {
+
+						        inputIdSplit = sNode.split("-")
+						        genParName = parametersData.filter(function (el) {return el.id == inputIdSplit[3] })[0].name
+						        channelName = document.getElementById(sNode).getAttribute("parentG") + "-" + genParName //g-0-genome
+						    } else {
+						        inputIdSplit = fNode.split("-")
+
+						        genParName = parametersData.filter(function (el) {return el.id == inputIdSplit[3] })[0].name
+						        channelName = document.getElementById(fNode).getAttribute("parentG") + "-" + genParName //g-0-genome
+						    }
+						    bodyInput = bodyInput + " " + qual + " " + inputName + " from " + channelName + "\n"
 						}
 					}
 					if (find == false) {
 						bodyInput = bodyInput +" "+ qual +" "+inputName + " from " + "param" + "\n"
+                         
 					}
 				}
 
@@ -944,7 +1216,8 @@ function drop(event) {
 					outputIdSplit = Oid.split("-")
 					qual = parametersData.filter(function (el) {return el.id == outputIdSplit[3]})[0].qualifier
 					outputName = document.getElementById(Oid).getAttribute("name")
-					channelName = document.getElementById(Oid).getAttribute("parentG")
+                    genParName = parametersData.filter(function (el) {return el.id == outputIdSplit[3]})[0].name
+					channelName = document.getElementById(Oid).getAttribute("parentG") + "-" +genParName
 
 					bodyOutput = bodyOutput + " " + qual + " " + outputName + " into " + channelName + "\n"
 				}
@@ -1005,10 +1278,12 @@ function drop(event) {
 				.text(sName)
 			}
 		}
+        
+
 
 		function loadPipeline(sDataX,sDataY,sDatapId,sDataName,gN) {
-			t = d3.transform(d3.select('#'+"mainG").attr("transform")),
-			x = t.translate[0]
+			t = d3.transform(d3.select('#' + "mainG").attr("transform")),
+            x = t.translate[0]
 			y = t.translate[1]
 			z = t.scale[0]
 
@@ -1016,126 +1291,272 @@ function drop(event) {
 			e = document.getElementById("mainProcesses");
 			name = sDataName
 			id = sDatapId
-			index = e.options[e.selectedIndex].index;
-			inputs =  getValues(  {p: "getInputs",
-			    "process_id": id} )
-	        outputs = getValues(  {p: "getOutputs",
-			    "process_id": id} )
 
-//gnum uniqe, id same id (Written in class) in same type process
-			g = d3.select("#mainG").append("g")
-				.attr("id","g-" + gNum)
-				.attr("class","g-"+id)
-				.attr("transform", "translate("+ (sDataX) +","+ (sDataY) +")")
-				.on("mouseover",mouseOverG)
-				.on("mouseout",mouseOutG)
-//gnum(written in id): uniqe, id(Written in class): same id in same type process, bc(written in type): same at all bc
-			g.append("circle").attr("id", "bc-" + gNum )
-				.attr("class", "bc-" + id)
-				.attr("type","bc")
-				.attr("cx",cx)
-				.attr("cy",cy)
-				.attr("r",r+ior)
-				.attr('fill-opacity', 0.6)
-				.attr("fill", "red")
-				.transition()
-				.delay(500)
-				.duration(3000)
-				.attr("fill","#E0E0E0")
-//gnum(written in id): uniqe, id(Written in class): same id in same type process, sc(written in type): same at all bc
-			g.append("circle")
-				.datum([{cx: 0, cy: 0}])
-				.attr("id", "sc-" + gNum )
-				.attr("class", "sc-" + id)
-				.attr("type","sc")
-				.attr("r",r-ior)
-				.attr("fill","#BEBEBE")
-				.attr('fill-opacity', 0.6)
-				.on("mouseover",scMouseOver)
-				.on("mouseout",scMouseOut)
-				.call(drag)
-//gnum(written in id): uniqe,
-			g.append("text").attr("id", "text-" + gNum )
-				.datum([{cx: 0, cy: 0}])
-				.attr('font-family', 'FontAwesome')
-				.attr('font-size', '1em')
-				.text(name)
-				.style("text-anchor","middle")
-				.on("mouseover",scMouseOver)
-				.on("mouseout",scMouseOut)
-				.call(drag)
+			//for input parameters
+			if (id === "inPro") {
+			    ipR = 70 / 2
+			    ipIor = ipR / 3
 
-		  g.append("text").attr("id", "text-" + gNum )
-			  .datum([{cx: 0, cy: 0}])
-			  .attr('font-family', 'FontAwesome')
-			  .attr('font-size', '0.9em')
-			  .attr("x", -6)
-			  .attr("y", 15)
-			  .text('\uf040')
-			  .on("mousedown",rename)
-//gnum(written in id): uniqe,
-		  g.append("text")
-			  .attr("id","del-"+gNum)
-			  .attr('font-family', 'FontAwesome')
-			  .attr('font-size', '1em')
-			  .attr("x", -6)
-			  .attr("y", r+ ior/2)
-			  .text('\uf014')
-			  .style("opacity",0.2)
-			  .on("mousedown", removeElement)
-			  
-		  g.append("text")
-			  .attr("id","info-"+gNum)
-			  .attr("class", "info-"+id)
-			  .attr('font-family', 'FontAwesome')
-			  .attr('font-size', '1em')
-			  .attr("x", 0)
-			  .attr("y", -1*( r + ior/2 - 10))
-			  .text('\uf129')
-			  .style("opacity",0.2)
-			  .on("mousedown", getInfo)
-// I/O id naming:[0]i = input,o = output -[1]process database ID -[2]The number of I/O of the selected process -[3]Parameter database ID- [4]uniqe number
-			for (var k = 0; k < inputs.length; k++) {
-					d3.select("#g-"+gNum).append("circle")
-						.attr("id","i-"+(id)+"-"+k+"-"+inputs[k].parameter_id+"-"+gNum)
-						.attr("type", "I/O")
-						.attr("kind","input")
-						.attr("parentG","g-"+gNum)
-						.attr("name", inputs[k].name)
-						.attr("status","standard" )
-						.attr("class",findType(inputs[k].parameter_id) + " input")
-						.attr("cx",calculatePos(inputs.length,k,"cx","inputs"))
-						.attr("cy",calculatePos(inputs.length,k,"cy","inputs"))
-						.attr("r", ior)
-						.attr("fill","tomato")
-						.attr('fill-opacity', 0.8)
-						.on("mouseover", IOmouseOver)
-						.on("mousemove", IOmouseMove)
-						.on("mouseout", IOmouseOut)
-						.on("mousedown",IOconnect)
-				}
+                //(A)if edges are not formed parameter_id data comes from default: process_parameter table "name" column
+                paramId4InputPar="inPara"  //default
+                classtoparam ="connect_to_input output"
+                pName ="inputparam"
+                //(B)if edges are formed parameter_id data comes from biocorepipesave table "edges" column
+                //first find if the is gNum based edges?
+                edgeIn = sData[0].edges
+                edgeInP = JSON.parse(edgeIn.replace(/'/gi, "\""))["edges"] //i-10-0-9-1_o-inPro-1-9-0
 
-			for (var k = 0; k < outputs.length; k++) {
-					d3.select("#g-"+gNum).append("circle")
-						.attr("id","o-"+(id)+"-"+k+"-"+outputs[k].parameter_id+"-"+gNum)
-						.attr("type", "I/O")
-						.attr("kind","output")
-						.attr("parentG","g-"+gNum)
-						.attr("name", outputs[k].name)
-						.attr("status","standard")
-						.attr("class", findType(outputs[k].parameter_id) +" output")
-						.attr("cx",calculatePos(outputs.length,k,"cx","outputs"))
-						.attr("cy",calculatePos(outputs.length,k,"cy","outputs"))
-						.attr("r", ior).attr("fill","steelblue")
-						.attr('fill-opacity', 0.8 )
-						.on("mouseover", IOmouseOver)
-						.on("mousemove", IOmouseMove)
-						.on("mouseout", IOmouseOut)
-						.on("mousedown",IOconnect)
+                for (var ee = 0; ee < edgeInP.length; ee++) { 
+                    patt=/(.*)-(.*)-(.*)-(.*)-(.*)_(.*)-(.*)-(.*)-(.*)-(.*)/
+                    edgeFirstPId=edgeInP[ee].replace(patt, '$2')
+                    edgeFirstGnum=edgeInP[ee].replace(patt, '$5')
+                    edgeSecondParID=edgeInP[ee].replace(patt, '$9')
+
+                    if (edgeFirstGnum === String(gNum) && edgeFirstPId === "inPro" ) {
+                    paramId4InputPar =edgeSecondParID //if edge is found
+                    classtoparam= findType(paramId4InputPar) + " output"
+                    pName = parametersData.filter(function (el) {return el.id == paramId4InputPar})[0].name
+                    break
+                    } 
+                        
+                }
+
+			    //gnum uniqe, id same id (Written in class) in same type process
+			    g = d3.select("#mainG").append("g")
+			        .attr("id", "g-" + gNum)
+			        .attr("class", "g-" + id)
+                    .attr("transform", "translate(" + (sDataX) + "," + (sDataY) + ")")                
+			        .on("mouseover", mouseOverG)
+			        .on("mouseout", mouseOutG)
+
+
+			    //second outermost circle visible gray
+			    g.append("circle")
+			        .datum([{
+			            cx: 0,
+			            cy: 0
+                }])
+			        .attr("id", "sc-" + gNum)
+			        .attr("class", "sc-" + id)
+			        .attr("type", "sc")
+			        .attr("r", ipR + ipIor)
+			        .attr("fill", "#E0E0E0")
+			        .attr('fill-opacity', 1)
+			        .on("mouseover", scMouseOver)
+			        .on("mouseout", scMouseOut)
+			        .call(drag)
+                
+                //gnum(written in id): uniqe, id(Written in class): same id in same type process, bc(written in type): same at all bc
+			    //outermost circle transparent
+			    g.append("circle").attr("id", "bc-" + gNum)
+			        .attr("class", "bc-" + id)
+			        .attr("type", "bc")
+			        .attr("cx", cx)
+			        .attr("cy", cy)
+			        .attr("r", ipR + ipIor)
+			        .attr('fill-opacity', 0.6)
+			        .attr("fill", "red")
+			        .transition()
+			        .delay(500)
+			        .duration(3000)
+			        .attr("fill", "#E0E0E0")
+
+			    //gnum(written in id): uniqe, id(Written in class): same id in same type process, bc(written in type): same at all bc
+			    //inner parameter circle 
+			    d3.select("#g-" + gNum).append("circle")
+			        .attr("id", "o-" + id + "-" + 1 + "-" + paramId4InputPar + "-" + gNum) //değişecek
+			        .attr("type", "I/O")
+			        .attr("kind", "input") //connection candidate=input
+			        .attr("parentG", "g-" + gNum)
+			        .attr("name", pName) //made up
+			        .attr("status", "standard")
+			        .attr("class", classtoparam) //made up  
+			        .attr("cx", cx)
+			        .attr("cy", cy)
+			        .attr("r", ipIor)
+			        .attr("fill", "orange")
+			        .attr('fill-opacity', 0.8)
+			        .on("mouseover", IOmouseOver)
+			        .on("mousemove", IOmouseMove)
+			        .on("mouseout", IOmouseOut)
+			        .on("mousedown", IOconnect)
+
+
+			    //gnum(written in id): unique,
+			    g.append("text").attr("id", "text-" + gNum)
+			        .datum([{
+			            cx: 0,
+			            cy: 20
+                }])
+			        .attr('font-family', 'FontAwesome')
+			        .attr('font-size', '1em')
+			        .text(name)
+			        .attr("text-anchor", "middle")
+			        .attr("x", 0)
+			        .attr("y", 28)
+			        .on("mouseover", scMouseOver)
+			        .on("mouseout", scMouseOut)
+			        .call(drag)
+
+			    g.append("text").attr("id", "text-" + gNum)
+			        .datum([{
+			            cx: 0,
+			            cy: 0
+                }])
+			        .attr('font-family', 'FontAwesome')
+			        .attr('font-size', '0.9em')
+			        .attr("x", -40)
+			        .attr("y", 5)
+			        .text('\uf040')
+			        .on("mousedown", rename)
+
+			    //gnum(written in id): uniqe,
+			    g.append("text")
+			        .attr("id", "del-" + gNum)
+			        .attr('font-family', 'FontAwesome')
+			        .attr('font-size', '1em')
+			        .attr("x", +30)
+			        .attr("y", 5) //.attr("y", r + ior / 2)
+			        .text('\uf014')
+			        .style("opacity", 0.2)
+			        .on("mousedown", removeElement)
+
+			    processList[("g-" + gNum)] = name
+			    gNum = gNum + 1
+			} else {
+			    index = e.options[e.selectedIndex].index;
+			    inputs = getValues({
+			        p: "getInputs",
+			        "process_id": id
+			    })
+			    outputs = getValues({
+			        p: "getOutputs",
+			        "process_id": id
+			    })
+
+			    //gnum uniqe, id same id (Written in class) in same type process
+			    g = d3.select("#mainG").append("g")
+			        .attr("id", "g-" + gNum)
+			        .attr("class", "g-" + id)
+			        .attr("transform", "translate(" + (sDataX) + "," + (sDataY) + ")")
+			        .on("mouseover", mouseOverG)
+			        .on("mouseout", mouseOutG)
+			    //gnum(written in id): uniqe, id(Written in class): same id in same type process, bc(written in type): same at all bc
+			    g.append("circle").attr("id", "bc-" + gNum)
+			        .attr("class", "bc-" + id)
+			        .attr("type", "bc")
+			        .attr("cx", cx)
+			        .attr("cy", cy)
+			        .attr("r", r + ior)
+			        .attr('fill-opacity', 0.6)
+			        .attr("fill", "red")
+			        .transition()
+			        .delay(500)
+			        .duration(3000)
+			        .attr("fill", "#E0E0E0")
+			    //gnum(written in id): uniqe, id(Written in class): same id in same type process, sc(written in type): same at all bc
+			    g.append("circle")
+			        .datum([{
+			            cx: 0,
+			            cy: 0
+			        }])
+			        .attr("id", "sc-" + gNum)
+			        .attr("class", "sc-" + id)
+			        .attr("type", "sc")
+			        .attr("r", r - ior)
+			        .attr("fill", "#BEBEBE")
+			        .attr('fill-opacity', 0.6)
+			        .on("mouseover", scMouseOver)
+			        .on("mouseout", scMouseOut)
+			        .call(drag)
+			    //gnum(written in id): uniqe,
+			    g.append("text").attr("id", "text-" + gNum)
+			        .datum([{
+			            cx: 0,
+			            cy: 0
+			        }])
+			        .attr('font-family', 'FontAwesome')
+			        .attr('font-size', '1em')
+			        .text(name)
+			        .style("text-anchor", "middle")
+			        .on("mouseover", scMouseOver)
+			        .on("mouseout", scMouseOut)
+			        .call(drag)
+
+			    g.append("text").attr("id", "text-" + gNum)
+			        .datum([{
+			            cx: 0,
+			            cy: 0
+			        }])
+			        .attr('font-family', 'FontAwesome')
+			        .attr('font-size', '0.9em')
+			        .attr("x", -6)
+			        .attr("y", 15)
+			        .text('\uf040')
+			        .on("mousedown", rename)
+			    //gnum(written in id): uniqe,
+			    g.append("text")
+			        .attr("id", "del-" + gNum)
+			        .attr('font-family', 'FontAwesome')
+			        .attr('font-size', '1em')
+			        .attr("x", -6)
+			        .attr("y", r + ior / 2)
+			        .text('\uf014')
+			        .style("opacity", 0.2)
+			        .on("mousedown", removeElement)
+
+			    g.append("text")
+			        .attr("id", "info-" + gNum)
+			        .attr("class", "info-" + id)
+			        .attr('font-family', 'FontAwesome')
+			        .attr('font-size', '1em')
+			        .attr("x", 0)
+			        .attr("y", -1 * (r + ior / 2 - 10))
+			        .text('\uf129')
+			        .style("opacity", 0.2)
+			        .on("mousedown", getInfo)
+			    // I/O id naming:[0]i = input,o = output -[1]process database ID -[2]The number of I/O of the selected process -[3]Parameter database ID- [4]uniqe number
+			    for (var k = 0; k < inputs.length; k++) {
+			        d3.select("#g-" + gNum).append("circle")
+			            .attr("id", "i-" + (id) + "-" + k + "-" + inputs[k].parameter_id + "-" + gNum)
+			            .attr("type", "I/O")
+			            .attr("kind", "input")
+			            .attr("parentG", "g-" + gNum)
+			            .attr("name", inputs[k].name)
+			            .attr("status", "standard")
+			            .attr("class", findType(inputs[k].parameter_id) + " input")
+			            .attr("cx", calculatePos(inputs.length, k, "cx", "inputs"))
+			            .attr("cy", calculatePos(inputs.length, k, "cy", "inputs"))
+			            .attr("r", ior)
+			            .attr("fill", "tomato")
+			            .attr('fill-opacity', 0.8)
+			            .on("mouseover", IOmouseOver)
+			            .on("mousemove", IOmouseMove)
+			            .on("mouseout", IOmouseOut)
+			            .on("mousedown", IOconnect)
+			    }
+
+			    for (var k = 0; k < outputs.length; k++) {
+			        d3.select("#g-" + gNum).append("circle")
+			            .attr("id", "o-" + (id) + "-" + k + "-" + outputs[k].parameter_id + "-" + gNum)
+			            .attr("type", "I/O")
+			            .attr("kind", "output")
+			            .attr("parentG", "g-" + gNum)
+			            .attr("name", outputs[k].name)
+			            .attr("status", "standard")
+			            .attr("class", findType(outputs[k].parameter_id) + " output")
+			            .attr("cx", calculatePos(outputs.length, k, "cx", "outputs"))
+			            .attr("cy", calculatePos(outputs.length, k, "cy", "outputs"))
+			            .attr("r", ior).attr("fill", "steelblue")
+			            .attr('fill-opacity', 0.8)
+			            .on("mouseover", IOmouseOver)
+			            .on("mousemove", IOmouseMove)
+			            .on("mouseout", IOmouseOut)
+			            .on("mousedown", IOconnect)
+			    }
+			    processList[("g-" + gNum)] = name
+			    gNum = gNum + 1
 			}
-			processList[("g-"+gNum)] = name
-			gNum = gNum + 1
-
 		}
 
 		function addCandidates2DictForLoad(fir) {

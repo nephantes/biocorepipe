@@ -80,12 +80,17 @@ $query = new dbfuncs();
 
 $parentMenus = json_decode($query->getParentSideBar());
 
+
 $menuhtml='<ul id="autocompletes1" class="sidebar-menu" data-widget="tree">';
+//add initial input parameters
+$menuhtml.='<li id="inputs" class="treeview">  <a href="" ondragstart="dragStart(event)" ondrag="dragging(event)" draggable="true" id="inputparam@inPro"> <i class="fa fa-plus"></i>  <text id="text-inPro" font-family="FontAwesome" font-size="0.9em" x="-6" y="15"></text> <span> Input Parameters </span> </a></li>';  
+$menuhtml.='<li id="outputs" class="treeview">  <a href="" ondragstart="dragStart(event)" ondrag="dragging(event)" draggable="true" id="outputparam@outPro"> <i class="fa fa-plus"></i>  <text id="text-outPro" font-family="FontAwesome" font-size="0.9em" x="-6" y="15"></text> <span> Output Parameters </span> </a></li>';    
+
 foreach ($parentMenus as $parentitem):
 
     $menuhtml.='<li class="treeview">';
 
-    $menuhtml.='<a href="#"><i class="fa fa-circle-o"></i> <span>'.$parentitem->{'name'}.'</span>';
+    $menuhtml.='<a href="" draggable="false"><i  class="fa fa-circle-o"></i> <span>'.$parentitem->{'name'}.'</span>';
     
     $items = json_decode($query->getSubMenuFromSideBar($parentitem->{'name'}));
 
