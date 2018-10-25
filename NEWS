@@ -1,3 +1,6 @@
+25.10.2018 Version 0.2.24
+"&&" Fix in nextflow command prep
+
 25.10.2018 Version 0.2.23
 Default command is defined for amazon before running nextflow: "source /etc/profile && source ~/.bash_profile"
 

@@ -229,10 +229,10 @@ class dbfuncs {
     $arr = array($profile_def, $profileCmd, $proPipeCmd, $imageCmd);
     $preCmd="";
     for ($i=0; $i<count($arr); $i++) {
-        $preCmd .= $arr[$i];
-        if (!empty($arr[$i]) && $i < count($arr)-1){
+        if (!empty($arr[$i]) && !empty($preCmd)){
             $preCmd .= " && ";
         }
+        $preCmd .= $arr[$i];
     }
 
     return $preCmd;
